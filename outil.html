@@ -234,6 +234,14 @@
     </div>
     <p class="aide">En cas de pépin seulement, par exemple si tu changes d’ordinateur.</p>
   </section>
+  <section class="boite" id="accueil-salons">
+    <h3 class="boite-titre">Salons</h3>
+    <p id="salons-info" class="aide"></p>
+    <div class="rangee-boutons">
+      <button type="button" id="btn-salons-gerer" class="secondaire">Gérer les salons</button>
+    </div>
+    <p class="aide">Renommer un salon, ou en supprimer un qui ne sert plus.</p>
+  </section>
 </section>
 
 <section class="boite" id="accueil-nouvelle" hidden>
@@ -269,6 +277,13 @@
 <section class="boite" id="tache-programme" hidden>
   <h3 class="boite-titre" id="programme-titre">Programme</h3>
   <div id="courante-panneau"></div>
+  <div class="rangee-boutons"><button type="button" class="secondaire" data-retour>Retour à l’accueil</button></div>
+</section>
+
+<section class="boite" id="tache-salons" hidden>
+  <h3 class="boite-titre">Salons</h3>
+  <p id="salons-etat" class="aide"></p>
+  <div id="salons-liste"></div>
   <div class="rangee-boutons"><button type="button" class="secondaire" data-retour>Retour à l’accueil</button></div>
 </section>
 
@@ -660,6 +675,32 @@ function datasetFusionnerEffectif(ds, saisonId, joueurs) {
 
 /* Les paires d'allées qui existent dans les données, par salon : c'est de là que
    le menu des allées doit partir (sa rectification du 14 nov. 2026, 21 h 58). */
+/* Les saisons dont le salon est « nom » (le champ salon d'une saison est une
+   chaîne, ou un tableau pour une saison résumée jouée dans plusieurs salons). */
+function saisonsDuSalon(ds, nom) {
+  var res = [];
+  Object.keys((ds && ds.saisons) || {}).forEach(function (id) {
+    var s = ds.saisons[id].salon;
+    if (s === nom || (Array.isArray(s) && s.indexOf(nom) !== -1)) res.push(id);
+  });
+  return res;
+}
+
+/* Renomme un salon dans toutes les saisons de la base ; retourne le nombre
+   de saisons touchées. */
+function renommerSalonDonnees(ds, ancien, nouveau) {
+  var n = 0;
+  Object.keys((ds && ds.saisons) || {}).forEach(function (id) {
+    var s = ds.saisons[id];
+    if (s.salon === ancien) { s.salon = nouveau; n++; }
+    else if (Array.isArray(s.salon)) {
+      var i = s.salon.indexOf(ancien);
+      if (i !== -1) { s.salon[i] = nouveau; n++; }
+    }
+  });
+  return n;
+}
+
 function pairesDepuisDonnees(ds) {
   var res = {};
   function noter(salon, paire) {
@@ -975,6 +1016,7 @@ if (typeof module !== 'undefined' && module.exports) {
     handicapsCalcules: handicapsCalcules, totalJoueur: totalJoueur, totauxBloc: totauxBloc,
     partiesARanger: partiesARanger, construireProgramme: construireProgramme, etatExemple: etatExemple,
     pairesDuSalon: pairesDuSalon, ajouterPaire: ajouterPaire,
+    saisonsDuSalon: saisonsDuSalon, renommerSalonDonnees: renommerSalonDonnees,
     datasetVide: datasetVide, classerFichier: classerFichier, datasetAjouterFichier: datasetAjouterFichier,
     donneesSite: donneesSite, genererTheme: genererTheme, progresSaison: progresSaison,
     datasetAjouterProgramme: datasetAjouterProgramme, datasetFusionnerEffectif: datasetFusionnerEffectif,
@@ -1419,12 +1461,16 @@ if (typeof module !== 'undefined' && module.exports) {
         var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o);
       });
       var on = document.createElement('option'); on.value = '__nouveau__'; on.textContent = 'Ajouter un salon…'; sel.appendChild(on);
+      var og = document.createElement('option'); og.value = '__gerer__'; og.textContent = 'Gérer les salons…'; sel.appendChild(og);
       sel.value = etat.salon;
     }
     remplirSalons = remplir;
     remplir();
     sel.addEventListener('change', function () {
-      if (this.value === '__nouveau__') {
+      if (this.value === '__gerer__') {
+        remplir();
+        montrerVue('salons');
+      } else if (this.value === '__nouveau__') {
         var nom = (window.prompt('Nom du nouveau salon :') || '').trim();
         if (nom) {
           if (etat.salons.indexOf(nom) === -1) {
@@ -1525,6 +1571,7 @@ if (typeof module !== 'undefined' && module.exports) {
       baseMaj = charge.maj;
     } catch (e) {}
     majBaseInfo();
+    majSalons();
   }
 
   function chargerBase() {
@@ -1553,6 +1600,87 @@ if (typeof module !== 'undefined' && module.exports) {
     donnees.liste.seasons.forEach(function (e) { var pr = progresSaison(donnees.saisons[e.id]); if (pr && pr.programmes) totalProg += pr.programmes; });
     z.textContent = 'Base de données : ' + donnees.liste.seasons.length + ' saison(s), ' + totalProg + ' programme(s).' +
       (baseMaj ? ' Dernière sauvegarde automatique : ' + heureFr(baseMaj) + '.' : '');
+  }
+
+  function sauverListeSalons() {
+    try { window.localStorage.setItem('amis-samedi-salons', JSON.stringify(etat.salons)); } catch (e) {}
+  }
+  function sauverPaires() {
+    try { window.localStorage.setItem('amis-samedi-paires', JSON.stringify(etat.pairesParSalon)); } catch (e) {}
+  }
+
+  /* L'écran « Salons » (ajouté le 16 nov. 2026, 23 h 21 : il avait créé un
+     « Salon Test » sans aucun moyen de le renommer ni de le supprimer).
+     Renommer suit partout : la liste, les paires d'allées, le salon courant
+     de la saisie et les saisons de la base. Supprimer est refusé si une
+     saison utilise le salon (le renommage est alors la voie). */
+  function majSalons() {
+    var info = el('salons-info');
+    if (info) info.textContent = etat.salons.length ? 'Salons connus : ' + etat.salons.join(', ') + '.' : 'Aucun salon pour le moment.';
+    var z = el('salons-liste'); if (!z) return;
+    z.innerHTML = '';
+    if (!etat.salons.length) {
+      el('salons-etat').textContent = 'Aucun salon pour le moment : un salon s’ajoute depuis le menu Salon de la saisie ou de la nouvelle saison.';
+      return;
+    }
+    etat.salons.forEach(function (nom) {
+      var utilise = donnees ? saisonsDuSalon(donnees, nom) : [];
+      var ligne = document.createElement('div');
+      ligne.className = 'rangee-boutons';
+      var tx = document.createElement('span');
+      tx.textContent = nom + (utilise.length ? ' — salon de la saison ' + utilise.join(', ') : ' — aucune saison ne l’utilise');
+      var bR = document.createElement('button');
+      bR.type = 'button'; bR.className = 'secondaire'; bR.textContent = 'Renommer';
+      bR.setAttribute('data-salon-renommer', nom);
+      var bS = document.createElement('button');
+      bS.type = 'button'; bS.className = 'secondaire'; bS.textContent = 'Supprimer';
+      bS.setAttribute('data-salon-supprimer', nom);
+      ligne.appendChild(tx); ligne.appendChild(bR); ligne.appendChild(bS);
+      z.appendChild(ligne);
+    });
+  }
+
+  function renommerSalon(ancien) {
+    var nouveau = (window.prompt('Nouveau nom pour « ' + ancien + ' » :', ancien) || '').trim();
+    if (!nouveau || nouveau === ancien) return;
+    if (etat.salons.indexOf(nouveau) !== -1) { el('salons-etat').textContent = 'Un salon porte déjà ce nom : ' + nouveau + '.'; return; }
+    var i = etat.salons.indexOf(ancien);
+    if (i !== -1) etat.salons[i] = nouveau;
+    if (etat.pairesParSalon && etat.pairesParSalon[ancien]) {
+      etat.pairesParSalon[nouveau] = etat.pairesParSalon[ancien];
+      delete etat.pairesParSalon[ancien];
+      sauverPaires();
+    }
+    if (etat.salon === ancien) etat.salon = nouveau;
+    var touchees = 0;
+    if (donnees) {
+      touchees = renommerSalonDonnees(donnees, ancien, nouveau);
+      if (touchees) { sauverBase(); modifications = true; }
+    }
+    sauverListeSalons();
+    remplirSalons(); remplirNouveauSalon();
+    majSalons(); majBandeau();
+    el('salons-etat').textContent = 'Salon renommé : « ' + ancien + ' » devient « ' + nouveau + ' ».' + (touchees ? ' ' + touchees + ' saison(s) mise(s) à jour dans la base.' : '');
+  }
+
+  function supprimerSalon(nom) {
+    var utilise = donnees ? saisonsDuSalon(donnees, nom) : [];
+    if (utilise.length) {
+      el('salons-etat').textContent = '« ' + nom + ' » est le salon de la saison ' + utilise.join(', ') + ' : il ne peut pas être supprimé. Renomme-le plutôt, le nouveau nom suivra partout.';
+      return;
+    }
+    if (!window.confirm('Supprimer le salon « ' + nom + ' » de la liste ? Ses paires d’allées seront aussi oubliées.')) return;
+    var i = etat.salons.indexOf(nom);
+    if (i !== -1) etat.salons.splice(i, 1);
+    if (etat.pairesParSalon && etat.pairesParSalon[nom]) {
+      delete etat.pairesParSalon[nom];
+      sauverPaires();
+    }
+    if (etat.salon === nom) etat.salon = etat.salons[0] || '';
+    sauverListeSalons();
+    remplirSalons(); remplirNouveauSalon();
+    majSalons();
+    el('salons-etat').textContent = 'Salon supprimé : « ' + nom + ' ».';
   }
 
   /* Le bandeau d'état, toujours visible en haut de l'outil : il dit en mots
@@ -1596,6 +1724,7 @@ if (typeof module !== 'undefined' && module.exports) {
     el('accueil-modifier').hidden = nom !== 'modifier';
     el('accueil-supprimer').hidden = nom !== 'supprimer';
     el('tache-programme').hidden = nom !== 'programme';
+    el('tache-salons').hidden = nom !== 'salons';
     el('vue-saisie').hidden = nom !== 'saisie';
     el('vue-validation').hidden = nom !== 'validation';
     panneauOuvert = (nom === 'ajouter' || nom === 'modifier' || nom === 'supprimer') ? nom : '';
@@ -1613,6 +1742,7 @@ if (typeof module !== 'undefined' && module.exports) {
     }
     if (nom !== 'saisie' && nom !== 'validation') majAccueil();
     if (nom === 'validation') majValidation();
+    if (nom === 'salons') majSalons();
     majBandeau();
     window.scrollTo(0, 0);
   }
@@ -1676,7 +1806,7 @@ if (typeof module !== 'undefined' && module.exports) {
     if (!garde || garde === '__ajouter__' || etat.salons.indexOf(garde) === -1) garde = etat.salon;
     sel.innerHTML = etat.salons.map(function (n) {
       return '<option value="' + n + '"' + (n === garde ? ' selected' : '') + '>' + n + '</option>';
-    }).join('') + '<option value="__ajouter__">Ajouter un salon…</option>';
+    }).join('') + '<option value="__ajouter__">Ajouter un salon…</option><option value="__gerer__">Gérer les salons…</option>';
     sel.value = garde;
   }
 
@@ -1697,6 +1827,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
   function majAccueil() {
     majBaseInfo();
+    majSalons();
     // Année libre (sa décision du 15 nov. 2026, 21 h 18) : un champ à taper,
     // pas un menu d'années bornées — 1930 comme 1995 doivent être possibles.
     var inpA = el('in-nouvelle-annee');
@@ -2016,6 +2147,12 @@ if (typeof module !== 'undefined' && module.exports) {
     el('accueil-etat').textContent = 'Copie de sauvegarde téléchargée (mes-donnees.json) : garde-la en cas de pépin, par exemple si tu changes d’ordinateur.';
   });
   el('btn-base-recuperer').addEventListener('click', function () { el('in-fichiers').click(); });
+  el('btn-salons-gerer').addEventListener('click', function () { montrerVue('salons'); });
+  el('salons-liste').addEventListener('click', function (ev) {
+    var b = ev.target;
+    if (b.getAttribute('data-salon-renommer')) renommerSalon(b.getAttribute('data-salon-renommer'));
+    else if (b.getAttribute('data-salon-supprimer')) supprimerSalon(b.getAttribute('data-salon-supprimer'));
+  });
   el('btn-accueil').addEventListener('click', function () { montrerVue('accueil'); });
   el('btn-retour-saisie').addEventListener('click', function () {
     if (!saisieRetour) { montrerVue('accueil'); return; }
@@ -2024,6 +2161,7 @@ if (typeof module !== 'undefined' && module.exports) {
   });
 
   el('in-nouvelle-salon').addEventListener('change', function () {
+    if (this.value === '__gerer__') { remplirNouveauSalon(); montrerVue('salons'); return; }
     if (this.value !== '__ajouter__') return;
     var nom = (window.prompt('Nom du nouveau salon :') || '').trim();
     if (nom && etat.salons.indexOf(nom) === -1) {
