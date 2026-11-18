@@ -23,6 +23,7 @@
   .nav-marque { padding: 0 10px 16px; border-bottom: 1px solid #1e293b; }
   .nav-titre-app { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.2px; }
   .nav-sous { font-size: 12.5px; color: #94a3b8; margin-top: 2px; }
+  .nav-version { padding: 8px 10px 0; font-size: 11px; color: #64748b; }
   .nav-liste { margin-top: 14px; flex: 1; overflow-y: auto; }
   .nav-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
                  color: #64748b; margin: 16px 10px 6px; }
@@ -184,6 +185,7 @@
   </nav>
   <div class="nav-bas">
     <button type="button" class="nav-item" id="btn-menu-replier">« Replier le menu</button>
+    <div class="nav-version" id="nav-version"></div>
   </div>
  </aside>
  <button type="button" id="btn-menu-ouvrir">☰ Menu</button>
@@ -628,6 +630,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
+var VERSION_OUTIL = '17 nov. 2026 · a8c741c'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -2186,6 +2189,7 @@ if (typeof module !== 'undefined' && module.exports) {
   el('btn-act-ajouter').addEventListener('click', function () { montrerVue('ajouter'); });
   el('btn-act-modifier').addEventListener('click', function () { montrerVue('modifier'); });
   el('btn-act-supprimer').addEventListener('click', function () { montrerVue('supprimer'); });
+  el('nav-version').textContent = 'Version ' + VERSION_OUTIL;
   el('nav-accueil').addEventListener('click', function () { montrerVue('accueil'); });
   function reglerMenu(ferme) {
     el('app').classList.toggle('menu-ferme', !!ferme);
