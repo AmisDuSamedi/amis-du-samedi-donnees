@@ -889,7 +889,68 @@ function datasetRemplacerProgramme(ds, saisonId, index, prog) {
    reviennent en valeurs manuelles, donc affichés tels que rangés. Les
    moyennes d'arrivée (colonne MOY) ne sont pas rangées dans un programme :
    elles reviennent vides, les pointages, eux, sont intacts. */
-function etatDepuisProgramme(sem, roster) {
+/* Les moyennes avec lesquelles les joueurs d'un programme ARRIVENT à ce
+   programme, recalculées depuis la base (ajout du 17 nov. 2026, 00 h 11 :
+   à la modification d'un programme, la colonne MOY revenait vide parce que
+   les moyennes entrantes ne sont pas rangées dans un programme classé).
+   Règle : moyenne cumulée des programmes PRÉCÉDENTS de la saison ; pour un
+   joueur qui n'a pas encore joué cette saison, la moyenne finale de la
+   saison précédente (calculée si elle est détaillée, lue si elle est
+   résumée). Arrondi à l'entier, comme sur la feuille papier. Un joueur sans
+   aucun antécédent n'a pas d'entrée (nouveau joueur : case vide). */
+function moyennesEntrantes(ds, saisonId, idx) {
+  var res = {};
+  var s = ds && ds.saisons && ds.saisons[saisonId];
+  if (!s) return res;
+  function accumuler(semaines, acc) {
+    (semaines || []).forEach(function (sem) {
+      (sem.equipes || []).forEach(function (eq) {
+        Object.keys(eq.scores || {}).forEach(function (pid) {
+          ((eq.scores[pid] || {}).parties || []).forEach(function (v) {
+            if (v === undefined || v === null || typeof v === 'object') return;
+            var n = Number(v);
+            if (isNaN(n)) return;
+            var a = acc[pid] || (acc[pid] = { qt: 0, pj: 0 });
+            a.qt += n; a.pj++;
+          });
+        });
+      });
+    });
+  }
+  var acc = {};
+  accumuler((s.semaines || []).slice(0, idx), acc);
+  var prevRes = null;
+  function saisonPrecedente() {
+    if (prevRes) return prevRes;
+    prevRes = {};
+    var pos = (ds.liste.seasons || []).findIndex(function (e) { return e.id === saisonId; });
+    var entree = pos !== -1 ? ds.liste.seasons[pos + 1] : null;
+    var prev = entree ? ds.saisons[entree.id] : null;
+    if (prev) {
+      if (prev.summaryOnly) {
+        (prev.joueurs || []).forEach(function (j) { if (j.moy != null) prevRes[j.id] = Math.round(j.moy); });
+      } else {
+        var accP = {};
+        accumuler(prev.semaines, accP);
+        Object.keys(accP).forEach(function (pid) { if (accP[pid].pj > 0) prevRes[pid] = Math.round(accP[pid].qt / accP[pid].pj); });
+      }
+    }
+    return prevRes;
+  }
+  var sem = (s.semaines || [])[idx];
+  var pids = {};
+  if (sem) (sem.equipes || []).forEach(function (eq) { (eq.joueurs || []).forEach(function (pid) { pids[pid] = true; }); });
+  Object.keys(pids).forEach(function (pid) {
+    if (acc[pid] && acc[pid].pj > 0) res[pid] = Math.round(acc[pid].qt / acc[pid].pj);
+    else {
+      var pr = saisonPrecedente();
+      if (pr[pid] != null) res[pid] = pr[pid];
+    }
+  });
+  return res;
+}
+
+function etatDepuisProgramme(sem, roster, moys) {
   var etat = nouvelEtat();
   etat.joueurs = (roster || []).map(function (j) { return { id: j.id, nom: j.name }; });
   if (sem.date) etat.date = sem.date;
@@ -915,6 +976,7 @@ function etatDepuisProgramme(sem, roster) {
         if (!ligne) return;
         var sc = (eq.scores || {})[pid] || {};
         ligne.id = pid;
+        if (moys && moys[pid] != null) ligne.moy = String(moys[pid]);
         ligne.n69 = (sc.n69 === undefined || sc.n69 === null) ? '' : String(sc.n69);
         ligne.parties = [0, 1, 2, 3].map(function (k) {
           var v = (sc.parties || [])[k];
@@ -1038,7 +1100,7 @@ if (typeof module !== 'undefined' && module.exports) {
     datasetDefinirCourante: datasetDefinirCourante, datasetDefinirCotisation: datasetDefinirCotisation, datasetRemplacerProgramme: datasetRemplacerProgramme,
     fichiersPublication: fichiersPublication, base64Utf8: base64Utf8, themeGitHub: themeGitHub,
     DEPOT_GITHUB: DEPOT_GITHUB, ADRESSE_DONNEES: ADRESSE_DONNEES,
-    etatDepuisProgramme: etatDepuisProgramme };
+    etatDepuisProgramme: etatDepuisProgramme, moyennesEntrantes: moyennesEntrantes };
 }
 </script>
 <script>
@@ -1989,7 +2051,7 @@ if (typeof module !== 'undefined' && module.exports) {
     var sem = s && s.semaines[index];
     if (!sem) return;
     programmeEnCours = { saisonId: saisonId, index: index };
-    etat = etatDepuisProgramme(sem, s.roster);
+    etat = etatDepuisProgramme(sem, s.roster, moyennesEntrantes(donnees, saisonId, index));
     etat.saison = saisonId;
     var salon = sem.salon || (Array.isArray(s.salon) ? s.salon[0] : s.salon);
     if (salon) {
