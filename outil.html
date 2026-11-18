@@ -633,7 +633,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '17 nov. 2026 · 7841a27'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '17 nov. 2026 · 4e3a53f'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1244,7 +1244,10 @@ if (typeof module !== 'undefined' && module.exports) {
   function remplirSelect(sel, valeur) {
     sel.innerHTML = '';
     var o0 = document.createElement('option'); o0.value = ''; o0.textContent = ''; sel.appendChild(o0);
-    etat.joueurs.forEach(function (j) {
+    // Les noms en ordre alphabétique (sa demande du 17 nov. 2026, 23 h 07 :
+    // la liste suivait l'ordre d'ajout des joueurs). Le même ordre que
+    // l'écran Joueurs ; « Nouveau joueur… » reste à la fin.
+    etat.joueurs.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); }).forEach(function (j) {
       var o = document.createElement('option'); o.value = j.id; o.textContent = j.nom; sel.appendChild(o);
     });
     var on = document.createElement('option'); on.value = '__nouveau__'; on.textContent = 'Nouveau joueur…'; sel.appendChild(on);
