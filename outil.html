@@ -24,6 +24,9 @@
   .nav-titre-app { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.2px; }
   .nav-sous { font-size: 12.5px; color: #94a3b8; margin-top: 2px; }
   .nav-version { padding: 8px 10px 0; font-size: 11px; color: #64748b; }
+  .joueurs-grille { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(150px, 1fr) auto; gap: 8px 10px; align-items: center; }
+  .joueurs-entete { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #64748b; }
+  .joueurs-grille input { width: 100%; }
   .nav-liste { margin-top: 14px; flex: 1; overflow-y: auto; }
   .nav-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
                  color: #64748b; margin: 16px 10px 6px; }
@@ -299,7 +302,7 @@
 
 <section class="boite" id="tache-joueurs" hidden>
   <h3 class="boite-titre">Joueurs</h3>
-  <p class="aide">Dans les records imprimés, le nom complet paraît tant qu’il tient dans sa cellule ; le nom abrégé le remplace seulement quand il déborderait. Vide, l’abréviation automatique s’applique : initiale du prénom et nom de famille. C’est ici que se règlent les collisions, par exemple Rén. Villeneuve et Réj. Villeneuve.</p>
+  <p class="aide">Le nom complet se corrige ici en cas d’erreur de création, et le nom abrégé se règle au même endroit. Dans les records imprimés, le nom complet paraît tant qu’il tient dans sa cellule ; le nom abrégé le remplace seulement quand il déborderait. Vide, l’abréviation automatique s’applique : initiale du prénom et nom de famille. C’est ici que se règlent les collisions, par exemple Rén. Villeneuve et Réj. Villeneuve.</p>
   <p id="joueurs-etat" class="aide"></p>
   <div id="joueurs-liste"></div>
   <div class="rangee-boutons"><button type="button" class="secondaire" data-retour>Retour à l’accueil</button></div>
@@ -630,7 +633,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '17 nov. 2026 · a8c741c'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '17 nov. 2026 · 7841a27'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -928,6 +931,27 @@ function datasetDefinirSurnom(ds, pid, court) {
   return n;
 }
 
+/* Renomme un joueur dans TOUTES les saisons de la base (effectifs et
+   joueurs des saisons résumées). Retourne le nombre d'entrées touchées,
+   ou -1 si le nouveau nom est déjà celui d'un AUTRE joueur du registre
+   (deux joueurs au même nom rendraient le registre ambigu). */
+function datasetRenommerJoueur(ds, pid, nouveauNom) {
+  var reg = registreJoueurs(ds);
+  var ids = Object.keys(reg);
+  for (var k = 0; k < ids.length; k++) {
+    if (ids[k] !== pid && reg[ids[k]].nom === nouveauNom) return -1;
+  }
+  var n = 0;
+  Object.keys((ds && ds.saisons) || {}).forEach(function (id) {
+    var s = ds.saisons[id];
+    var liste = s.summaryOnly ? (s.joueurs || []) : (s.roster || []);
+    liste.forEach(function (j) {
+      if (j.id === pid && j.name !== nouveauNom) { j.name = nouveauNom; n++; }
+    });
+  });
+  return n;
+}
+
 function datasetDefinirCourante(ds, saisonId) {
   var s = ds.saisons[saisonId];
   if (!s || s.brouillon) return false;
@@ -1165,7 +1189,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fichierComplet: fichierComplet, datasetRetirerProgramme: datasetRetirerProgramme,
     datasetRetirerSaison: datasetRetirerSaison, datasetEnregistrerSaison: datasetEnregistrerSaison,
     datasetDefinirCourante: datasetDefinirCourante, datasetDefinirCotisation: datasetDefinirCotisation,
-    nomAbrege: nomAbrege, datasetDefinirSurnom: datasetDefinirSurnom, datasetRemplacerProgramme: datasetRemplacerProgramme,
+    nomAbrege: nomAbrege, datasetDefinirSurnom: datasetDefinirSurnom, datasetRenommerJoueur: datasetRenommerJoueur, datasetRemplacerProgramme: datasetRemplacerProgramme,
     fichiersPublication: fichiersPublication, base64Utf8: base64Utf8, themeGitHub: themeGitHub,
     DEPOT_GITHUB: DEPOT_GITHUB, ADRESSE_DONNEES: ADRESSE_DONNEES,
     etatDepuisProgramme: etatDepuisProgramme, moyennesEntrantes: moyennesEntrantes };
@@ -1828,48 +1852,73 @@ if (typeof module !== 'undefined' && module.exports) {
      abrégés dans les records) : le surnom de chaque joueur du registre,
      modifiable ; la modification s'applique à toutes les saisons de la base
      et à la saisie en cours. */
+  var joueursRegistre = {}; // le registre tel qu'affiché, pour savoir ce qui a changé
+
   function majJoueurs() {
     var info = el('joueurs-info');
     var reg = donnees ? registreJoueurs(donnees) : {};
+    joueursRegistre = reg;
     var ids = Object.keys(reg);
     if (info) info.textContent = ids.length ? ids.length + ' joueur(s) au registre de la ligue.' : 'Aucun joueur pour le moment.';
     var z = el('joueurs-liste'); if (!z) return;
     z.innerHTML = '';
+    z.className = 'joueurs-grille';
     if (!ids.length) {
+      z.className = '';
       el('joueurs-etat').textContent = donnees ? 'Aucun joueur au registre pour le moment : les joueurs se créent pendant la saisie des programmes.' : 'Aucune base de données pour le moment.';
       return;
     }
+    ['Nom complet', 'Nom abrégé', ''].forEach(function (txt) {
+      var h = document.createElement('span');
+      h.className = 'joueurs-entete'; h.textContent = txt;
+      z.appendChild(h);
+    });
     ids.map(function (id) { return reg[id]; })
       .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); })
       .forEach(function (jo) {
-        var ligne = document.createElement('div');
-        ligne.className = 'rangee-form';
-        var tx = document.createElement('span');
-        tx.textContent = jo.nom;
-        var inp = document.createElement('input');
-        inp.type = 'text'; inp.value = jo.court || ''; inp.placeholder = nomAbrege(jo.nom);
-        inp.setAttribute('data-surnom-champ', jo.id); inp.style.width = '170px';
+        var inNom = document.createElement('input');
+        inNom.type = 'text'; inNom.value = jo.nom;
+        inNom.setAttribute('data-nom-champ', jo.id);
+        var inCourt = document.createElement('input');
+        inCourt.type = 'text'; inCourt.value = jo.court || ''; inCourt.placeholder = nomAbrege(jo.nom);
+        inCourt.setAttribute('data-surnom-champ', jo.id);
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'secondaire'; b.textContent = 'Enregistrer';
-        b.setAttribute('data-surnom-btn', jo.id);
-        ligne.appendChild(tx); ligne.appendChild(inp); ligne.appendChild(b);
-        z.appendChild(ligne);
+        b.setAttribute('data-joueur-btn', jo.id); b.disabled = true;
+        z.appendChild(inNom); z.appendChild(inCourt); z.appendChild(b);
       });
   }
 
-  function enregistrerSurnom(pid) {
-    var inp = document.querySelector('input[data-surnom-champ="' + pid + '"]');
-    if (!inp || !donnees) return;
-    var court = (inp.value || '').trim();
-    var touchees = datasetDefinirSurnom(donnees, pid, court);
-    etat.joueurs.forEach(function (j) { if (j.id === pid) j.court = court; });
-    if (touchees) { sauverBase(); modifications = true; }
-    var reg = registreJoueurs(donnees);
-    var nom = reg[pid] ? reg[pid].nom : pid;
+  /* Le bouton « Enregistrer » d'un joueur ne s'active que si le nom ou le
+     surnom a changé par rapport au registre affiché. */
+  function majBoutonJoueur(pid) {
+    var jo = joueursRegistre[pid]; if (!jo) return;
+    var inNom = document.querySelector('input[data-nom-champ="' + pid + '"]');
+    var inCourt = document.querySelector('input[data-surnom-champ="' + pid + '"]');
+    var b = document.querySelector('button[data-joueur-btn="' + pid + '"]');
+    if (!inNom || !inCourt || !b) return;
+    b.disabled = !(((inNom.value || '').trim() !== jo.nom) || ((inCourt.value || '').trim() !== (jo.court || '')));
+  }
+
+  function enregistrerJoueur(pid) {
+    if (!donnees) return;
+    var jo = joueursRegistre[pid]; if (!jo) return;
+    var inNom = document.querySelector('input[data-nom-champ="' + pid + '"]');
+    var inCourt = document.querySelector('input[data-surnom-champ="' + pid + '"]');
+    var nouveauNom = (inNom.value || '').trim();
+    var court = (inCourt.value || '').trim();
+    if (!nouveauNom) { el('joueurs-etat').textContent = 'Le nom complet ne peut pas être vide.'; return; }
+    var touches = 0;
+    if (nouveauNom !== jo.nom) {
+      var r = datasetRenommerJoueur(donnees, pid, nouveauNom);
+      if (r === -1) { el('joueurs-etat').textContent = '« ' + nouveauNom + ' » est déjà le nom d’un autre joueur : rien n’a été enregistré.'; return; }
+      touches += r;
+    }
+    if (court !== (jo.court || '')) touches += datasetDefinirSurnom(donnees, pid, court);
+    etat.joueurs.forEach(function (j) { if (j.id === pid) { j.nom = nouveauNom; j.court = court; } });
+    if (touches) { sauverBase(); modifications = true; }
     majJoueurs(); majBandeau();
-    el('joueurs-etat').textContent = court
-      ? 'Nom abrégé de ' + nom + ' : « ' + court + ' », appliqué à toute la base.'
-      : 'Nom abrégé de ' + nom + ' effacé : l’abréviation automatique s’applique (« ' + nomAbrege(nom) + ' »).';
+    el('joueurs-etat').textContent = 'Joueur mis à jour : ' + nouveauNom + (court ? ', nom abrégé « ' + court + ' »' : ', nom abrégé automatique (« ' + nomAbrege(nouveauNom) + ' »)') + ', appliqué à toute la base.';
   }
 
   /* Le bandeau d'état, toujours visible en haut de l'outil : il dit en mots
@@ -2355,7 +2404,11 @@ if (typeof module !== 'undefined' && module.exports) {
   el('btn-joueurs-gerer').addEventListener('click', function () { montrerVue('joueurs'); });
   el('joueurs-liste').addEventListener('click', function (ev) {
     var b = ev.target;
-    if (b.getAttribute('data-surnom-btn')) enregistrerSurnom(b.getAttribute('data-surnom-btn'));
+    if (b.getAttribute('data-joueur-btn')) enregistrerJoueur(b.getAttribute('data-joueur-btn'));
+  });
+  el('joueurs-liste').addEventListener('input', function (ev) {
+    var pid = ev.target.getAttribute('data-nom-champ') || ev.target.getAttribute('data-surnom-champ');
+    if (pid) majBoutonJoueur(pid);
   });
   el('salons-liste').addEventListener('click', function (ev) {
     var b = ev.target;
