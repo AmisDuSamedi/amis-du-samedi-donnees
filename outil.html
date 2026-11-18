@@ -1589,6 +1589,7 @@ if (typeof module !== 'undefined' && module.exports) {
     el('in-salon').value = etat.salon;
     syncDateDepuisEtat();
     document.querySelector('input[name="mode-equipes"][value="connues"]').checked = true;
+    programmeEnCours = null;
     saisieModifiee = false;
     toutReconstruire();
     majBandeau();
@@ -1608,8 +1609,7 @@ if (typeof module !== 'undefined' && module.exports) {
       majBandeau();
       if (enModification) {
         journal.push('Programme du ' + dateFr(sem.date) + ' modifié dans la saison ' + etat.saison + '.');
-        dire('Programme du ' + (sem.date || 'sans date') + ' modifié et enregistré dans la base de données (saison ' + etat.saison + ').');
-        programmeEnCours = null;
+        dire('Programme du ' + (sem.date || 'sans date') + ' modifié et enregistré dans la base de données (saison ' + etat.saison + '). Tu peux continuer à corriger et réenregistrer : il remplacera toujours ce même programme.');
       } else {
         journal.push('Programme du ' + dateFr(sem.date) + ' rangé dans la saison ' + etat.saison +
           ' (elle en compte maintenant ' + donnees.saisons[etat.saison].semaines.length + ').');
@@ -2069,7 +2069,7 @@ if (typeof module !== 'undefined' && module.exports) {
     remplirMenuSaisons();
     toutReconstruire();
     montrerVue('saisie');
-    dire('Programme du ' + dateFr(sem.date) + ' chargé pour modification. Corrige, puis « Enregistrer le programme » : il remplacera l’ancien dans la base de données. Les moyennes d’arrivée (colonne MOY) n’étaient pas rangées avec le programme : elles sont vides, les pointages sont intacts.');
+    dire('Programme du ' + dateFr(sem.date) + ' chargé pour modification. Corrige, puis « Enregistrer le programme » : il remplacera l’ancien dans la base de données, autant de fois que tu l’enregistreras.');
   }
 
   el('btn-act-ajouter').addEventListener('click', function () { montrerVue('ajouter'); });
