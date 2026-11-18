@@ -479,6 +479,11 @@ function construireProgramme(etat) {
           if (!l.id || !ps.length) return;
           ids.push(l.id);
           scores[l.id] = { parties: ps, n69: num(l.n69) || 0 };
+          /* La moyenne tapée sur la feuille est rangée avec le programme
+             (ajout du 17 nov. 2026, 21 h 39, à sa demande) : c'est elle qui
+             ressortira à la modification, telle qu'il l'a inscrite. Le site
+             l'ignore, ses moyennes sont toujours calculées des parties. */
+          if (l.moy !== '' && l.moy !== undefined && l.moy !== null) scores[l.id].moy = num(l.moy);
         });
         if (!ids.length) return null;
         var eq = { joueurs: ids, handicap: 0, feuille: fi + 1, scores: scores };
@@ -976,7 +981,8 @@ function etatDepuisProgramme(sem, roster, moys) {
         if (!ligne) return;
         var sc = (eq.scores || {})[pid] || {};
         ligne.id = pid;
-        if (moys && moys[pid] != null) ligne.moy = String(moys[pid]);
+        if (sc.moy !== undefined && sc.moy !== null && sc.moy !== '') ligne.moy = String(sc.moy);
+        else if (moys && moys[pid] != null) ligne.moy = String(moys[pid]);
         ligne.n69 = (sc.n69 === undefined || sc.n69 === null) ? '' : String(sc.n69);
         ligne.parties = [0, 1, 2, 3].map(function (k) {
           var v = (sc.parties || [])[k];
