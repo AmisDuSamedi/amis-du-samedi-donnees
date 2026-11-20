@@ -481,7 +481,12 @@ function partiesARanger(ligne) {
 function construireProgramme(etat) {
   var equipes = [], photos = [];
   etat.feuilles.forEach(function (f, fi) {
-    if (f.photo) photos.push(f.photo);
+    /* Une case par feuille, dans l'ordre des feuilles (null quand la
+       feuille n'a pas de photo) : au rechargement, chaque nom retrouve
+       SA feuille. L'ancien rangement compacté (seules les feuilles avec
+       photo, à la suite) décalait les noms dès qu'une feuille du milieu
+       n'avait pas de photo — relevé le 19 nov. 2026. */
+    photos.push(f.photo || null);
     /* Les allées de la feuille, une paire par partie, indiquées dans
        l'en-tête : tous les joueurs d'une feuille jouent sur les mêmes
        paires. La paire de la partie 1 va sur l'équipe ; le moteur du site
@@ -528,6 +533,7 @@ function construireProgramme(etat) {
   if (!equipes.length) return null;
   var sem = { source: 'saisie', equipes: equipes };
   if (etat.date) sem.date = etat.date;
+  while (photos.length && !photos[photos.length - 1]) photos.pop();
   if (photos.length) sem.photos = photos;
   return sem;
 }
@@ -633,7 +639,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '18 nov. 2026 · 21cde4f'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '19 nov. 2026 · d278775'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
