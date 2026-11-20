@@ -255,6 +255,14 @@
     </div>
     <p class="aide">Le nom abrégé de chaque joueur, pour les records imprimés quand le nom complet ne tient pas.</p>
   </section>
+  <section class="boite" id="accueil-activation">
+    <h3 class="boite-titre">Saisons actives</h3>
+    <p id="activation-info" class="aide"></p>
+    <div class="rangee-boutons">
+      <button type="button" id="btn-activation-gerer" class="secondaire">Activer / désactiver des saisons</button>
+    </div>
+    <p class="aide">Une saison désactivée ne paraît plus sur le site à la prochaine publication, sans perdre ses données. Pratique pendant la saisie d’une saison passée : ses statistiques se suivent seules, puis tout se réactive.</p>
+  </section>
 </section>
 
 <section class="boite" id="accueil-nouvelle" hidden>
@@ -306,6 +314,21 @@
   <p id="joueurs-etat" class="aide"></p>
   <div id="joueurs-liste"></div>
   <div class="rangee-boutons"><button type="button" class="secondaire" data-retour>Retour à l’accueil</button></div>
+</section>
+
+<section class="boite" id="tache-activation" hidden>
+  <h3 class="boite-titre">Saisons actives</h3>
+  <p class="aide">Cochée, une saison paraît sur le site ; décochée, elle en disparaît à la prochaine publication. Ses données restent dans la base, intactes. La saison en cours peut être décochée elle aussi : le site affiche alors la plus récente des saisons encore actives.</p>
+  <p id="activation-etat" class="aide"></p>
+  <div id="activation-liste"></div>
+  <div class="rangee-boutons">
+    <button type="button" class="secondaire" id="btn-activation-toutes">Tout cocher</button>
+    <button type="button" class="secondaire" id="btn-activation-aucune">Tout décocher</button>
+  </div>
+  <div class="rangee-boutons">
+    <button type="button" id="btn-activation-confirmer">Confirmer</button>
+    <button type="button" class="secondaire" data-retour>Retour à l’accueil</button>
+  </div>
 </section>
 
 <section id="vue-validation" hidden>
@@ -617,13 +640,33 @@ function donneesSite(ds) {
   var saisons = {}, entrees = [];
   ds.liste.seasons.forEach(function (e) {
     var s = ds.saisons[e.id];
-    if (s && s.brouillon) return;
+    if (s && (s.brouillon || s.desactivee)) return;
     entrees.push(e);
     if (s) saisons[e.id] = s;
   });
   var courant = ds.liste.current;
   if (courant && !saisons[courant]) courant = entrees.length ? entrees[0].id : null;
   return { manifest: { current: courant, seasons: entrees }, seasons: saisons };
+}
+
+/* Active ou désactive une saison (sa demande du 19 nov. 2026, 23 h 15) :
+   une saison désactivée reste intacte dans la base, mais donneesSite
+   l'exclut de la publication, comme un brouillon — le site ne la voit
+   plus. Sert à la saisie historique : pendant l'entrée d'une saison
+   passée, désactiver toutes les autres pour suivre ses statistiques
+   seule sur le site, puis tout réactiver. Retourne true si l'état a
+   changé. */
+function datasetDefinirActivation(ds, id, active) {
+  var s = ds && ds.saisons ? ds.saisons[id] : null;
+  if (!s) return false;
+  if (active) {
+    if (!s.desactivee) return false;
+    delete s.desactivee;
+    return true;
+  }
+  if (s.desactivee) return false;
+  s.desactivee = true;
+  return true;
 }
 
 /* LE fichier de données de l'utilisateur : un seul fichier, qui contient
@@ -639,7 +682,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '19 nov. 2026 · 7e614d4'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '19 nov. 2026 · 516390d'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1187,7 +1230,7 @@ if (typeof module !== 'undefined' && module.exports) {
     pairesDuSalon: pairesDuSalon, ajouterPaire: ajouterPaire,
     saisonsDuSalon: saisonsDuSalon, renommerSalonDonnees: renommerSalonDonnees,
     datasetVide: datasetVide, classerFichier: classerFichier, datasetAjouterFichier: datasetAjouterFichier,
-    donneesSite: donneesSite, genererTheme: genererTheme, progresSaison: progresSaison,
+    donneesSite: donneesSite, datasetDefinirActivation: datasetDefinirActivation, genererTheme: genererTheme, progresSaison: progresSaison,
     datasetAjouterProgramme: datasetAjouterProgramme, datasetFusionnerEffectif: datasetFusionnerEffectif,
     pairesDepuisDonnees: pairesDepuisDonnees, datasetCreerSaison: datasetCreerSaison, REPERE_DONNEES: REPERE_DONNEES,
     registreJoueurs: registreJoueurs, idPourNom: idPourNom, joueursAyantJoue: joueursAyantJoue,
@@ -1788,6 +1831,42 @@ if (typeof module !== 'undefined' && module.exports) {
      Renommer suit partout : la liste, les paires d'allées, le salon courant
      de la saisie et les saisons de la base. Supprimer est refusé si une
      saison utilise le salon (le renommage est alors la voie). */
+  function majActivationInfo() {
+    var info = el('activation-info'); if (!info) return;
+    if (!donnees || !donnees.liste.seasons.length) { info.textContent = 'Aucune saison pour le moment.'; return; }
+    var des = donnees.liste.seasons.filter(function (e) { var s = donnees.saisons[e.id]; return s && s.desactivee; })
+      .map(function (e) { return e.name || e.id; });
+    info.textContent = des.length ? 'Saisons désactivées : ' + des.join(', ') + '.' : 'Toutes les saisons sont actives.';
+  }
+
+  function majActivation() {
+    var z = el('activation-liste'); if (!z) return;
+    z.innerHTML = '';
+    if (!donnees || !donnees.liste.seasons.length) {
+      el('activation-etat').textContent = 'Aucune saison pour le moment.';
+      return;
+    }
+    el('activation-etat').textContent = '';
+    donnees.liste.seasons.forEach(function (e) {
+      var s = donnees.saisons[e.id]; if (!s) return;
+      var ligne = document.createElement('div');
+      ligne.className = 'rangee-boutons';
+      var lab = document.createElement('label');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !s.desactivee;
+      cb.setAttribute('data-activation', e.id);
+      lab.appendChild(cb);
+      var etats = [];
+      if (donnees.liste.current === e.id) etats.push('En cours');
+      else if (s.summaryOnly) etats.push('Résumée');
+      if (s.brouillon) etats.push('En saisie');
+      if (s.desactivee) etats.push('Désactivée');
+      lab.appendChild(document.createTextNode(' ' + (e.name || e.id) + (etats.length ? ' — ' + etats.join(' · ') : '')));
+      ligne.appendChild(lab);
+      z.appendChild(ligne);
+    });
+  }
+
   function majSalons() {
     var info = el('salons-info');
     if (info) info.textContent = etat.salons.length ? 'Salons connus : ' + etat.salons.join(', ') + '.' : 'Aucun salon pour le moment.';
@@ -1973,6 +2052,7 @@ if (typeof module !== 'undefined' && module.exports) {
     el('tache-programme').hidden = nom !== 'programme';
     el('tache-salons').hidden = nom !== 'salons';
     el('tache-joueurs').hidden = nom !== 'joueurs';
+    el('tache-activation').hidden = nom !== 'activation';
     el('vue-saisie').hidden = nom !== 'saisie';
     el('vue-validation').hidden = nom !== 'validation';
     panneauOuvert = (nom === 'ajouter' || nom === 'modifier' || nom === 'supprimer') ? nom : '';
@@ -1992,6 +2072,7 @@ if (typeof module !== 'undefined' && module.exports) {
     if (nom === 'validation') majValidation();
     if (nom === 'salons') majSalons();
     if (nom === 'joueurs') majJoueurs();
+    if (nom === 'activation') majActivation();
     majBandeau();
     window.scrollTo(0, 0);
   }
@@ -2078,6 +2159,7 @@ if (typeof module !== 'undefined' && module.exports) {
     majBaseInfo();
     majSalons();
     majJoueurs();
+    majActivationInfo();
     // Année libre (sa décision du 15 nov. 2026, 21 h 18) : un champ à taper,
     // pas un menu d'années bornées — 1930 comme 1995 doivent être possibles.
     var inpA = el('in-nouvelle-annee');
@@ -2410,6 +2492,32 @@ if (typeof module !== 'undefined' && module.exports) {
   });
   el('btn-base-recuperer').addEventListener('click', function () { el('in-fichiers').click(); });
   el('btn-salons-gerer').addEventListener('click', function () { montrerVue('salons'); });
+  el('btn-activation-gerer').addEventListener('click', function () { montrerVue('activation'); });
+  el('btn-activation-toutes').addEventListener('click', function () {
+    document.querySelectorAll('[data-activation]').forEach(function (cb) { cb.checked = true; });
+  });
+  el('btn-activation-aucune').addEventListener('click', function () {
+    document.querySelectorAll('[data-activation]').forEach(function (cb) { cb.checked = false; });
+  });
+  el('btn-activation-confirmer').addEventListener('click', function () {
+    if (!donnees) return;
+    var cbs = document.querySelectorAll('[data-activation]');
+    var nbActives = 0;
+    cbs.forEach(function (cb) { if (cb.checked) nbActives++; });
+    if (cbs.length && nbActives === 0) {
+      if (!window.confirm('Aucune saison ne resterait active : après la prochaine publication, le site affichera sa page « En construction ». Continuer?')) return;
+    }
+    var changes = 0;
+    cbs.forEach(function (cb) {
+      if (datasetDefinirActivation(donnees, cb.getAttribute('data-activation'), cb.checked)) changes++;
+    });
+    if (changes) { sauverBase(); modifications = true; }
+    majActivation();
+    el('activation-etat').textContent = changes
+      ? 'Modifications enregistrées : elles prendront effet à la prochaine publication.'
+      : 'Aucun changement.';
+    majActivationInfo(); majBandeau();
+  });
   el('btn-joueurs-gerer').addEventListener('click', function () { montrerVue('joueurs'); });
   el('joueurs-liste').addEventListener('click', function (ev) {
     var b = ev.target;
