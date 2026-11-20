@@ -25,8 +25,10 @@
   .nav-sous { font-size: 12.5px; color: #94a3b8; margin-top: 2px; }
   .nav-version { padding: 8px 10px 0; font-size: 11px; color: #64748b; }
   .joueurs-grille { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(150px, 1fr) auto; gap: 8px 10px; align-items: center; }
-  .joueurs-entete { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #64748b; }
+  .joueurs-entete, .salons-entete { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #64748b; }
   .joueurs-grille input { width: 100%; }
+  .salons-grille { display: grid; grid-template-columns: minmax(170px, 1.1fr) minmax(150px, 1fr) auto auto; gap: 8px 10px; align-items: center; }
+  .salons-grille .salon-nom { font-weight: 600; }
   .nav-liste { margin-top: 14px; flex: 1; overflow-y: auto; }
   .nav-section { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
                  color: #64748b; margin: 16px 10px 6px; }
@@ -662,7 +664,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '19 nov. 2026 · e62a9cc'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '20 nov. 2026 · 124a4a3'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1842,24 +1844,31 @@ if (typeof module !== 'undefined' && module.exports) {
   function majSalons() {
     var z = el('salons-liste'); if (!z) return;
     z.innerHTML = '';
+    z.className = 'salons-grille';
     if (!etat.salons.length) {
+      z.className = '';
       el('salons-etat').textContent = 'Aucun salon pour le moment : un salon s’ajoute depuis le menu Salon de la saisie ou de la nouvelle saison.';
       return;
     }
+    el('salons-etat').textContent = '';
+    ['Salon', 'Utilisé par', '', ''].forEach(function (txt) {
+      var h = document.createElement('span');
+      h.className = 'salons-entete'; h.textContent = txt;
+      z.appendChild(h);
+    });
     etat.salons.forEach(function (nom) {
       var utilise = donnees ? saisonsDuSalon(donnees, nom) : [];
-      var ligne = document.createElement('div');
-      ligne.className = 'rangee-boutons';
       var tx = document.createElement('span');
-      tx.textContent = nom + (utilise.length ? ' — salon de la saison ' + utilise.join(', ') : ' — aucune saison ne l’utilise');
+      tx.className = 'salon-nom'; tx.textContent = nom;
+      var tu = document.createElement('span');
+      tu.textContent = utilise.length ? utilise.join(', ') : 'Aucune saison';
       var bR = document.createElement('button');
       bR.type = 'button'; bR.className = 'secondaire'; bR.textContent = 'Renommer';
       bR.setAttribute('data-salon-renommer', nom);
       var bS = document.createElement('button');
       bS.type = 'button'; bS.className = 'secondaire'; bS.textContent = 'Supprimer';
       bS.setAttribute('data-salon-supprimer', nom);
-      ligne.appendChild(tx); ligne.appendChild(bR); ligne.appendChild(bS);
-      z.appendChild(ligne);
+      z.appendChild(tx); z.appendChild(tu); z.appendChild(bR); z.appendChild(bS);
     });
   }
 
