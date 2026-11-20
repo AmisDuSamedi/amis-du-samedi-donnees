@@ -183,6 +183,10 @@
     <button type="button" class="nav-item" id="btn-act-ajouter">Ajouter une saison</button>
     <button type="button" class="nav-item" id="btn-act-modifier">Modifier une saison</button>
     <button type="button" class="nav-item" id="btn-act-supprimer">Supprimer une saison</button>
+    <button type="button" class="nav-item" id="btn-activation-gerer">Saisons actives</button>
+    <div class="nav-section">Gestion</div>
+    <button type="button" class="nav-item" id="btn-salons-gerer">Salons</button>
+    <button type="button" class="nav-item" id="btn-joueurs-gerer">Joueurs</button>
     <div class="nav-section">Site</div>
     <button type="button" class="nav-item" id="nav-publier">Publier</button>
   </nav>
@@ -238,30 +242,6 @@
       <input type="file" id="in-fichiers" accept=".json,application/json" multiple hidden>
     </div>
     <p class="aide">En cas de pépin seulement, par exemple si tu changes d’ordinateur.</p>
-  </section>
-  <section class="boite" id="accueil-salons">
-    <h3 class="boite-titre">Salons</h3>
-    <p id="salons-info" class="aide"></p>
-    <div class="rangee-boutons">
-      <button type="button" id="btn-salons-gerer" class="secondaire">Gérer les salons</button>
-    </div>
-    <p class="aide">Renommer un salon, ou en supprimer un qui ne sert plus.</p>
-  </section>
-  <section class="boite" id="accueil-joueurs">
-    <h3 class="boite-titre">Joueurs</h3>
-    <p id="joueurs-info" class="aide"></p>
-    <div class="rangee-boutons">
-      <button type="button" id="btn-joueurs-gerer" class="secondaire">Gérer les joueurs</button>
-    </div>
-    <p class="aide">Le nom abrégé de chaque joueur, pour les records imprimés quand le nom complet ne tient pas.</p>
-  </section>
-  <section class="boite" id="accueil-activation">
-    <h3 class="boite-titre">Saisons actives</h3>
-    <p id="activation-info" class="aide"></p>
-    <div class="rangee-boutons">
-      <button type="button" id="btn-activation-gerer" class="secondaire">Activer / désactiver des saisons</button>
-    </div>
-    <p class="aide">Une saison désactivée ne paraît plus sur le site à la prochaine publication, sans perdre ses données. Pratique pendant la saisie d’une saison passée : ses statistiques se suivent seules, puis tout se réactive.</p>
   </section>
 </section>
 
@@ -682,7 +662,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '19 nov. 2026 · 516390d'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '19 nov. 2026 · e62a9cc'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1826,19 +1806,6 @@ if (typeof module !== 'undefined' && module.exports) {
     try { window.localStorage.setItem('amis-samedi-paires', JSON.stringify(etat.pairesParSalon)); } catch (e) {}
   }
 
-  /* L'écran « Salons » (ajouté le 16 nov. 2026, 23 h 21 : il avait créé un
-     « Salon Test » sans aucun moyen de le renommer ni de le supprimer).
-     Renommer suit partout : la liste, les paires d'allées, le salon courant
-     de la saisie et les saisons de la base. Supprimer est refusé si une
-     saison utilise le salon (le renommage est alors la voie). */
-  function majActivationInfo() {
-    var info = el('activation-info'); if (!info) return;
-    if (!donnees || !donnees.liste.seasons.length) { info.textContent = 'Aucune saison pour le moment.'; return; }
-    var des = donnees.liste.seasons.filter(function (e) { var s = donnees.saisons[e.id]; return s && s.desactivee; })
-      .map(function (e) { return e.name || e.id; });
-    info.textContent = des.length ? 'Saisons désactivées : ' + des.join(', ') + '.' : 'Toutes les saisons sont actives.';
-  }
-
   function majActivation() {
     var z = el('activation-liste'); if (!z) return;
     z.innerHTML = '';
@@ -1867,9 +1834,12 @@ if (typeof module !== 'undefined' && module.exports) {
     });
   }
 
+  /* L'écran « Salons » (ajouté le 16 nov. 2026, 23 h 21 : il avait créé un
+     « Salon Test » sans aucun moyen de le renommer ni de le supprimer).
+     Renommer suit partout : la liste, les paires d'allées, le salon courant
+     de la saisie et les saisons de la base. Supprimer est refusé si une
+     saison utilise le salon (le renommage est alors la voie). */
   function majSalons() {
-    var info = el('salons-info');
-    if (info) info.textContent = etat.salons.length ? 'Salons connus : ' + etat.salons.join(', ') + '.' : 'Aucun salon pour le moment.';
     var z = el('salons-liste'); if (!z) return;
     z.innerHTML = '';
     if (!etat.salons.length) {
@@ -1943,11 +1913,9 @@ if (typeof module !== 'undefined' && module.exports) {
   var joueursRegistre = {}; // le registre tel qu'affiché, pour savoir ce qui a changé
 
   function majJoueurs() {
-    var info = el('joueurs-info');
     var reg = donnees ? registreJoueurs(donnees) : {};
     joueursRegistre = reg;
     var ids = Object.keys(reg);
-    if (info) info.textContent = ids.length ? ids.length + ' joueur(s) au registre de la ligue.' : 'Aucun joueur pour le moment.';
     var z = el('joueurs-liste'); if (!z) return;
     z.innerHTML = '';
     z.className = 'joueurs-grille';
@@ -2058,6 +2026,8 @@ if (typeof module !== 'undefined' && module.exports) {
     panneauOuvert = (nom === 'ajouter' || nom === 'modifier' || nom === 'supprimer') ? nom : '';
     var actifs = { 'nav-accueil': nom === 'accueil', 'btn-act-ajouter': nom === 'ajouter',
       'btn-act-modifier': nom === 'modifier', 'btn-act-supprimer': nom === 'supprimer',
+      'btn-activation-gerer': nom === 'activation',
+      'btn-salons-gerer': nom === 'salons', 'btn-joueurs-gerer': nom === 'joueurs',
       'btn-prog-modifier': nom === 'programme' && couranteMode === 'modifier',
       'btn-prog-supprimer': nom === 'programme' && couranteMode === 'supprimer' };
     Object.keys(actifs).forEach(function (id) { var b = el(id); if (b) b.classList.toggle('actif', !!actifs[id]); });
@@ -2159,7 +2129,6 @@ if (typeof module !== 'undefined' && module.exports) {
     majBaseInfo();
     majSalons();
     majJoueurs();
-    majActivationInfo();
     // Année libre (sa décision du 15 nov. 2026, 21 h 18) : un champ à taper,
     // pas un menu d'années bornées — 1930 comme 1995 doivent être possibles.
     var inpA = el('in-nouvelle-annee');
@@ -2516,7 +2485,7 @@ if (typeof module !== 'undefined' && module.exports) {
     el('activation-etat').textContent = changes
       ? 'Modifications enregistrées : elles prendront effet à la prochaine publication.'
       : 'Aucun changement.';
-    majActivationInfo(); majBandeau();
+    majBandeau();
   });
   el('btn-joueurs-gerer').addEventListener('click', function () { montrerVue('joueurs'); });
   el('joueurs-liste').addEventListener('click', function (ev) {
