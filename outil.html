@@ -664,7 +664,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '20 nov. 2026 · 124a4a3'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '20 nov. 2026 · 7f1e83c'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1851,7 +1851,7 @@ if (typeof module !== 'undefined' && module.exports) {
       return;
     }
     el('salons-etat').textContent = '';
-    ['Salon', 'Utilisé par', '', ''].forEach(function (txt) {
+    ['Salon', 'Saison(s)', '', ''].forEach(function (txt) {
       var h = document.createElement('span');
       h.className = 'salons-entete'; h.textContent = txt;
       z.appendChild(h);
