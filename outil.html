@@ -664,7 +664,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '20 nov. 2026 · 245dd8a'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '21 nov. 2026 · f3c8cd3'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -1089,7 +1089,10 @@ function etatDepuisProgramme(sem, roster, moys) {
     parFeuille[f].forEach(function (eq, i) {
       if (!feuille.alleesParties) feuille.alleesParties = ['', '', '', ''];
       if (!feuille.alleesParties[0] && eq.allees) feuille.alleesParties[0] = eq.allees;
-      if (sem.photos && sem.photos[f]) feuille.photo = sem.photos[f];
+      /* photos[f - 1] : le numéro de feuille est 1-based, le tableau photos
+         est 0-based — sans le -1, chaque feuille montrait la photo de la
+         suivante (décalage relevé le 21 nov. 2026). */
+      if (sem.photos && sem.photos[f - 1]) feuille.photo = sem.photos[f - 1];
       var bloc = feuille.blocs[i];
       if (!bloc) return;
       (eq.joueurs || []).forEach(function (pid, j) {
