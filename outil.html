@@ -735,17 +735,26 @@ function hdTotal(eq, n) { var s = 0; for (var k = 0; k < n; k++) s += hdPartie(e
    leurs totaux saisis et leurs records d'équipe saisis. Valeurs seulement :
    c'est le garde-fou des textes fixes. */
 function recordsCalcules(ds) {
-  var res = { phs: 0, n300: 0, phq: 0, moy: 0, s200: 0, n69: 0, n200: 0, phse: 0, phqe: 0 };
+  var res = { phs: 0, n300: 0, phq: 0, moy: 0, s200: 0, n69: 0, n200: 0, phse: 0, phqe: 0,
+    qui: { phs: [], phq: [], moy: [], s200: [], n69: [], n200: [], phse: [], phqe: [] } };
   var d = donneesSite(ds);
   var courante = d.manifest.current;
-  function individu(pj, qt, phs, n300, phq, n69, n200, s200, terminee) {
-    if (phs > res.phs) { res.phs = phs; res.n300 = n300; }
-    else if (phs === 300 && res.phs === 300 && n300 > res.n300) res.n300 = n300;
-    if (phq > res.phq) res.phq = phq;
-    if (n69 > res.n69) res.n69 = n69;
-    if (n200 > res.n200) res.n200 = n200;
-    if (s200 > res.s200) res.s200 = s200;
-    if (terminee && pj > 0 && qt / pj > res.moy) res.moy = qt / pj;
+  function tenir(cle, valeur, etiquette) {
+    if (valeur > res[cle]) { res[cle] = valeur; res.qui[cle] = [etiquette]; }
+    else if (valeur === res[cle] && etiquette && res.qui[cle].indexOf(etiquette) === -1) res.qui[cle].push(etiquette);
+  }
+  function individu(pj, qt, phs, n300, phq, n69, n200, s200, terminee, etiquette) {
+    var avantPhs = res.phs;
+    tenir('phs', phs, etiquette);
+    if (phs === 300 && res.phs === 300) {
+      if (avantPhs < 300) res.n300 = n300;
+      else if (n300 > res.n300) res.n300 = n300;
+    }
+    tenir('phq', phq, etiquette);
+    tenir('n69', n69, etiquette);
+    tenir('n200', n200, etiquette);
+    tenir('s200', s200, etiquette);
+    if (terminee && pj > 0) tenir('moy', Math.round((qt / pj) * 10) / 10, etiquette);
   }
   d.manifest.seasons.forEach(function (e) {
     var s = d.seasons[e.id]; if (!s) return;
@@ -756,16 +765,16 @@ function recordsCalcules(ds) {
       var seuilR = maxProg * 4 * 0.6;
       (s.joueurs || []).forEach(function (p) {
         if (!((p.pj || 0) > 0 && (p.pj || 0) >= seuilR)) return;
-        individu(p.pj || 0, p.qt || 0, p.phs || 0, p.n300 || 0, p.phq || 0, p.n69 || 0, p.n200 || 0, p.s200 || 0, terminee);
+        individu(p.pj || 0, p.qt || 0, p.phs || 0, p.n300 || 0, p.phq || 0, p.n69 || 0, p.n200 || 0, p.s200 || 0, terminee, (p.name || p.id) + ' (' + e.name + ')');
       });
       var re = s.recordsEquipe || {};
-      if (re.phs && typeof re.phs.val === 'number' && re.phs.val > res.phse) res.phse = re.phs.val;
-      if (re.phq && typeof re.phq.val === 'number' && re.phq.val > res.phqe) res.phqe = re.phq.val;
+      if (re.phs && typeof re.phs.val === 'number') tenir('phse', re.phs.val, re.phs.qui || '');
+      if (re.phq && typeof re.phq.val === 'number') tenir('phqe', re.phq.val, re.phq.qui || '');
       return;
     }
     var parId = {};
     (s.roster || []).forEach(function (r) {
-      parId[r.id] = { pj: 0, qt: 0, phs: 0, n300: 0, phq: 0, n69: 0, n200: 0, course: 0, mieux: 0 };
+      parId[r.id] = { nom: r.name, pj: 0, qt: 0, phs: 0, n300: 0, phq: 0, n69: 0, n200: 0, course: 0, mieux: 0 };
     });
     var semaines = (s.semaines || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     semaines.forEach(function (sem) {
@@ -793,7 +802,7 @@ function recordsCalcules(ds) {
       var l = parId[pid];
       if (l.pj > 0 && l.pj >= seuilD) {
         reguliers[pid] = true;
-        individu(l.pj, l.qt, l.phs, l.n300, l.phq, l.n69, l.n200, l.mieux, terminee);
+        individu(l.pj, l.qt, l.phs, l.n300, l.phq, l.n69, l.n200, l.mieux, terminee, l.nom + ' (' + e.name + ')');
       }
     });
     semaines.forEach(function (sem) {
@@ -808,24 +817,20 @@ function recordsCalcules(ds) {
           if (A && B) {
             var n = Math.min(A.length, B.length), tot = 0;
             for (var k = 0; k < n; k++) {
-              var sv = A[k] + B[k] + hdPartie(eq, k);
-              if (sv > res.phse) res.phse = sv;
+              tenir('phse', A[k] + B[k] + hdPartie(eq, k), parId[js[0]].nom + ', ' + parId[js[1]].nom + ', hd:' + hdPartie(eq, k));
               tot += A[k] + B[k];
             }
-            var q = tot + hdTotal(eq, n);
-            if (q > res.phqe) res.phqe = q;
+            tenir('phqe', tot + hdTotal(eq, n), parId[js[0]].nom + ', ' + parId[js[1]].nom + ', hd:' + hdTotal(eq, n));
           }
         } else if (js.length === 1 && reguliers[js[0]]) {
           var S = jeux(js[0]);
           if (S && S.length && hdTotal(eq, S.length) > 0) {
             var totS = 0;
             for (var k2 = 0; k2 < S.length; k2++) {
-              var sv2 = S[k2] + hdPartie(eq, k2);
-              if (sv2 > res.phse) res.phse = sv2;
+              tenir('phse', S[k2] + hdPartie(eq, k2), parId[js[0]].nom + ', Handicap: ' + hdPartie(eq, k2));
               totS += S[k2];
             }
-            var q2 = totS + hdTotal(eq, S.length);
-            if (q2 > res.phqe) res.phqe = q2;
+            tenir('phqe', totS + hdTotal(eq, S.length), parId[js[0]].nom + ', Handicap: ' + hdTotal(eq, S.length));
           }
         }
       });
@@ -850,8 +855,20 @@ function texteCalcule(k, calc) {
   return String(calc[k]);
 }
 
-/* Les records dont les données dépassent déjà le texte fixe : le texte est
-   à mettre à jour, ou le record calculé est à vérifier. */
+/* Le nom nu d'une étiquette de détenteur calculé : « Nom (saison) » →
+   « Nom » ; « A, B, hd:N » → « A, B » ; « Nom, Handicap: N » → « Nom ». */
+function nomNu(etiquette) {
+  return String(etiquette || '').replace(/ \([^)]*\)$/, '').replace(/, hd:\d+$/, '').replace(/, Handicap: \d+$/, '');
+}
+function nomNormalise(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/* Les records dont les données dépassent déjà le texte fixe (le texte est
+   à mettre à jour), et ceux qu'elles ÉGALENT avec un détenteur absent du
+   texte fixe (un co-détenteur à ajouter — sa demande du 22 nov. 2026,
+   16 h 33 : « si le record est égalé, je dois également le savoir »).
+   L'égalité par le détenteur déjà nommé dans le texte ne signale rien. */
 function pdfTempDepasses(ds) {
   var fixes = pdfTempValeurs(ds);
   var calc = recordsCalcules(ds);
@@ -859,11 +876,32 @@ function pdfTempDepasses(ds) {
   PDF_TEMP_CLES.forEach(function (k) {
     var n = nombreFixe(fixes[k].val);
     if (!n) return;
-    var dep = false;
-    if (k === 'phs') dep = calc.phs > n.base || (calc.phs === 300 && n.base === 300 && n.compte !== null && calc.n300 > n.compte);
-    else if (k === 'moy') dep = Math.round(calc.moy * 10) / 10 > n.base;
-    else dep = calc[k] > n.base;
-    if (dep) out.push({ cle: k, label: PDF_TEMP_LABELS[k], fixe: fixes[k].val, calculee: texteCalcule(k, calc) });
+    var dep = false, ega = false;
+    if (k === 'phs') {
+      dep = calc.phs > n.base || (calc.phs === 300 && n.base === 300 && n.compte !== null && calc.n300 > n.compte);
+      ega = !dep && calc.phs > 0 && calc.phs === n.base && (n.base !== 300 || n.compte === null || calc.n300 === n.compte);
+    } else if (k === 'moy') {
+      var m = Math.round(calc.moy * 10) / 10;
+      dep = m > n.base;
+      ega = !dep && m > 0 && m === n.base;
+    } else {
+      dep = calc[k] > n.base;
+      ega = !dep && calc[k] > 0 && calc[k] === n.base;
+    }
+    if (dep) {
+      out.push({ cle: k, label: PDF_TEMP_LABELS[k], type: 'depasse', fixe: fixes[k].val, calculee: texteCalcule(k, calc) });
+      return;
+    }
+    if (ega) {
+      var fixeN = nomNormalise(fixes[k].qui);
+      var nouveaux = [];
+      (calc.qui[k] || []).forEach(function (et) {
+        nomNu(et).split(', ').forEach(function (nm) {
+          if (nm && fixeN.indexOf(nomNormalise(nm)) === -1 && nouveaux.indexOf(nm) === -1) nouveaux.push(nm);
+        });
+      });
+      if (nouveaux.length) out.push({ cle: k, label: PDF_TEMP_LABELS[k], type: 'egale', fixe: fixes[k].val, calculee: texteCalcule(k, calc), nouveaux: nouveaux });
+    }
   });
   return out;
 }
@@ -920,7 +958,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '22 nov. 2026 · 0dea9f2'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '22 nov. 2026 · 20d8546'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -2224,14 +2262,24 @@ if (typeof module !== 'undefined' && module.exports) {
       inVal.setAttribute('data-pdftemp-val', k);
       z.appendChild(lab); z.appendChild(inQui); z.appendChild(inVal);
     });
-    var dep = pdfTempDepasses(donnees);
-    if (dep.length) {
+    var signaux = pdfTempDepasses(donnees);
+    var depasses = signaux.filter(function (x) { return x.type === 'depasse'; });
+    var egales = signaux.filter(function (x) { return x.type === 'egale'; });
+    if (depasses.length) {
       var p = document.createElement('p');
       p.className = 'aide';
       p.textContent = 'À vérifier : les données dépassent déjà le texte fixe pour '
-        + dep.map(function (x) { return x.label + ' (calculé : ' + x.calculee + ' ; texte fixe : ' + x.fixe + ')'; }).join(' ; ')
+        + depasses.map(function (x) { return x.label + ' (calculé : ' + x.calculee + ' ; texte fixe : ' + x.fixe + ')'; }).join(' ; ')
         + '. Si le nouveau record est bien officiel, mets le texte à jour ci-dessus.';
       al.appendChild(p);
+    }
+    if (egales.length) {
+      var p2 = document.createElement('p');
+      p2.className = 'aide';
+      p2.textContent = 'Record égalé : '
+        + egales.map(function (x) { return x.label + ' (calculé : ' + x.calculee + '), par ' + x.nouveaux.join(', '); }).join(' ; ')
+        + '. Si ce nom ne figure pas déjà dans ton texte fixe, ajoute-le comme co-détenteur.';
+      al.appendChild(p2);
     }
   }
 
