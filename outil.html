@@ -960,7 +960,7 @@ var REPERE_DONNEES = '/*__DONNEES__*/null';
 /* Génère le thème complet pour Blogger : la coquille, les données à la place du repère. */
 // Publication GitHub (route 2, configurée le 16 nov. 2026) : le dépôt
 // public des données et son adresse de lecture (GitHub Pages).
-var VERSION_OUTIL = '27 nov. 2026 · 9c01604'; // remplacé à la construction (date + commit)
+var VERSION_OUTIL = '27 nov. 2026 · 0cf4ea4'; // remplacé à la construction (date + commit)
 var DEPOT_GITHUB = { proprietaire: 'AmisDuSamedi', nom: 'amis-du-samedi-donnees' };
 var ADRESSE_DONNEES = 'https://amisdusamedi.github.io/amis-du-samedi-donnees';
 
@@ -2707,7 +2707,14 @@ if (typeof module !== 'undefined' && module.exports) {
     var sem = s && s.semaines[index];
     if (!sem) return;
     programmeEnCours = { saisonId: saisonId, index: index };
+    // Les listes de référence (salons, paires d'allées) survivent au
+    // remplacement de l'état : etatDepuisProgramme repart d'un état vierge,
+    // et les perdre vidait les menus d'allées pour le reste de la session
+    // (son signalement du 27 nov. 2026, 22 h 58 — même garde que « Tout effacer »).
+    var salonsAvant = etat.salons, pairesAvant = etat.pairesParSalon;
     etat = etatDepuisProgramme(sem, s.roster, moyennesEntrantes(donnees, saisonId, index));
+    etat.salons = salonsAvant;
+    etat.pairesParSalon = pairesAvant;
     etat.saison = saisonId;
     var salon = sem.salon || (Array.isArray(s.salon) ? s.salon[0] : s.salon);
     if (salon) {
